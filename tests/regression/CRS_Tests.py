@@ -6,10 +6,61 @@ import re
 import os
 
 
-def test_crs(ruleset, test, logchecker_obj):
+def test_crs(ruleset, test, logchecker_obj, config):
     runner = testrunner.TestRunner()
+    if test.annotation and 'skip' in test.annotation:
+        skips = skip_test(test.annotation['skip'], config)
+        if skips.is_true:
+            pytest.skip(skips.reason if skips.reason else 'Skipped due to the skip condition.')
     for stage in test.stages:
         runner.run_stage(stage, logchecker_obj)
+
+
+def skip_test(skip_annotation, config):
+    for config_param in skip_annotation.keys():
+        skips = Condition(skip_annotation[config_param]).eval(config[config_param])
+        if skips.is_true:
+            return skips
+    return ConditionResult(False, None)
+
+
+class Condition:
+    def __init__(self, condition):
+        self.op = None
+        self.val = None
+        self.reason = None
+        for op, val in condition.items():
+            if op == 'reason':
+                self.reason = val
+                continue
+            if self.op is not None:
+                raise Exception('More than one operator in a single operator.')
+            self.op = op
+            self.val = val
+
+    def eval(self, val):
+        if self.op == 'in':
+            return ConditionResult(val in self.val, self.reason)
+        elif self.op == 'not-in':
+            return ConditionResult(val not in self.val, self.reason)
+        elif self.op == 'is':
+            return ConditionResult(val == self.val, self.reason)
+        elif self.op == 'is-not':
+            return ConditionResult(val != self.val, self.reason)
+        elif self.op == 'or':
+            for condition in self.val or []:
+                result = Condition(condition).eval(val)
+                if result.is_true:
+                    return ConditionResult(True, self.reason or result.reason)
+            return ConditionResult(False, self.reason)
+        else:
+            raise Exception(f'Invalid operator: {self.op}')
+
+
+class ConditionResult:
+    def __init__(self, is_true, reason):
+        self.is_true = is_true
+        self.reason = reason
 
 
 class FooLogChecker(logchecker.LogChecker):
