@@ -251,6 +251,11 @@
     -
       test_title: 920100-14
       desc: Invalid HTTP Request Line (920100) - Test 3 from old modsec regressions
+      annotation:
+          skip:
+              runtime:
+                  reason: The invalid HTTP method is rejected by Nginx without WAF
+                  is: "modsec3-nginx"
       stages:
       -
         stage:
